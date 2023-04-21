@@ -3,7 +3,7 @@ mod auth;
 mod user;
 
 use user::User;
-use auth::Auth;
+use auth::token::Token;
 use rocket::form::Form;
 
 #[get("/")]
@@ -13,7 +13,7 @@ fn index() -> &'static str {
 
 #[post("/authenticate", data = "<user>")]
 fn authenticate(user: Form<User<'_>>) -> String {
-    Auth::new(user.username.to_string()).token()
+    Token::create(user.username.to_string())
 }
 
 #[launch]

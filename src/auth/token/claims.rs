@@ -1,6 +1,6 @@
-use rocket::serde::{Serialize};
+use rocket::serde::{Serialize, Deserialize};
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct Claims {
     pub sub: String,
