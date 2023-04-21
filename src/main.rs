@@ -16,7 +16,12 @@ fn authenticate(user: Form<User<'_>>) -> String {
     Token::create(user.username.to_string())
 }
 
+#[get("/room/<room>")]
+fn room(room: &str, _token: Token) -> String {
+    format!("Welcome to {}!", room)
+}
+
 #[launch]
 fn rocket() -> _ {
-    rocket::build().mount("/", routes![index, authenticate])
+    rocket::build().mount("/", routes![index, authenticate, room])
 }
