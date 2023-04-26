@@ -6,6 +6,7 @@ use jsonwebtoken::{
 };
 use rocket::http::Status;
 use rocket::{request::FromRequest, Request, request::Outcome};
+use std::env;
 
 #[derive(Debug)]
 pub enum TokenError {
@@ -25,14 +26,18 @@ impl Token {
         let token: Result<String, jsonwebtoken::errors::Error> = encode(
             &jsonwebtoken::Header::default(), 
             &claims, 
-            &EncodingKey::from_secret("secret".as_ref())
+            &EncodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref())
         );
         
         token.unwrap()
     }
 
     fn validate(token: String) -> bool {
-        let token = decode::<Claims>(&token, &DecodingKey::from_secret("secret".as_ref()), &Validation::default());
+        let token = decode::<Claims>(
+            &token, 
+            &DecodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref()), 
+            &Validation::default()
+        );
         token.is_ok() && token.unwrap().claims.exp > get_current_timestamp()
     }
 }

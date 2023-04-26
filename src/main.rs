@@ -1,10 +1,12 @@
 #[macro_use] extern crate rocket;
+
 mod auth;
 mod user;
 
-use user::User;
 use auth::token::Token;
+use dotenv::dotenv;
 use rocket::form::Form;
+use user::User;
 
 #[get("/")]
 fn index() -> &'static str {
@@ -23,5 +25,6 @@ fn room(room: &str, _token: Token) -> String {
 
 #[launch]
 fn rocket() -> _ {
+    dotenv().ok();
     rocket::build().mount("/", routes![index, authenticate, room])
 }
