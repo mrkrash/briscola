@@ -10,7 +10,8 @@ use std::env;
 
 #[derive(Debug)]
 pub enum TokenError {
-    Missing,
+    MissingHeader,
+    MissingBearer,
     Invalid,
 }
 
@@ -40,6 +41,14 @@ impl Token {
         );
         token.is_ok() && token.unwrap().claims.exp > get_current_timestamp()
     }
+
+    fn bearer(authorization: &str) -> Option<&str> {
+        if authorization.len() > 7 && authorization[..7] == "Bearer ".to_string() {
+            return Some(authorization[7..].as_ref())
+        }
+
+        None
+    }
 }
 
 #[rocket::async_trait]
@@ -47,9 +56,13 @@ impl<'r> FromRequest<'r> for Token {
     type Error = TokenError;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let authorization = request.headers().get_one("Authorization");
+        if authorization.is_none() {
+            return Outcome::Failure((Status::BadRequest, TokenError::MissingHeader))
+        }
 
-        match request.headers().get_one("x-api-key") {
-            None => Outcome::Failure((Status::BadRequest, TokenError::Missing)),
+        match Token::bearer(authorization.unwrap()) {
+            None => Outcome::Failure((Status::BadRequest, TokenError::MissingBearer)),
             Some(token) if Token::validate(token.to_string()) => Outcome::Success(Token {}),
             Some(_) => Outcome::Failure((Status::BadRequest, TokenError::Invalid)),
         }
