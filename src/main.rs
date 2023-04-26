@@ -3,7 +3,7 @@
 mod auth;
 mod user;
 
-use auth::token::Token;
+use auth::Token;
 use dotenv::dotenv;
 use rocket::form::Form;
 use user::User;
