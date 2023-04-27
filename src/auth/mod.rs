@@ -21,7 +21,7 @@ impl Token {
     pub fn create(username: String) -> String {
         let claims = Claims {
             sub: username,
-            exp: get_current_timestamp() + 30
+            exp: get_current_timestamp() + 3600
         };
 
         let token: Result<String, jsonwebtoken::errors::Error> = encode(
@@ -29,7 +29,7 @@ impl Token {
             &claims, 
             &EncodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref())
         );
-        
+
         token.unwrap()
     }
 
