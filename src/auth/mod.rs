@@ -15,13 +15,19 @@ pub enum TokenError {
     Invalid,
 }
 
-pub struct Token { }
+pub struct Token {
+    pub username: String
+}
 
 impl Token {
     pub fn create(username: String) -> String {
+        let expiration_time = env::var(
+            "JWT_EXPIRATION_TIME"
+        ).unwrap_or("3600".to_string()).parse::<u64>().unwrap();
+
         let claims = Claims {
             sub: username,
-            exp: get_current_timestamp() + 3600
+            exp: get_current_timestamp() + expiration_time
         };
 
         let token: Result<String, jsonwebtoken::errors::Error> = encode(
@@ -49,6 +55,16 @@ impl Token {
 
         None
     }
+
+    fn sub(token: &str) -> String {
+        let token = decode::<Claims>(
+            &token,
+            &DecodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref()),
+            &Validation::default()
+        );
+
+        token.unwrap().claims.sub
+    }
 }
 
 #[rocket::async_trait]
@@ -63,7 +79,9 @@ impl<'r> FromRequest<'r> for Token {
 
         match Token::bearer(authorization.unwrap()) {
             None => Outcome::Failure((Status::BadRequest, TokenError::MissingBearer)),
-            Some(token) if Token::validate(token.to_string()) => Outcome::Success(Token {}),
+            Some(token) if Token::validate(token.to_string()) => Outcome::Success(Token {
+                username: Token::sub(token)
+            }),
             Some(_) => Outcome::Failure((Status::BadRequest, TokenError::Invalid)),
         }
     }
