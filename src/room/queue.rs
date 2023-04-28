@@ -1,37 +1,74 @@
-use crate::room::message::{PublicMessage, PrivateMessage};
-use rocket::tokio::sync::broadcast::{channel, Sender, Receiver};
+use crate::room::message::Message;
+use rocket::response::stream::{Event, EventStream};
+use rocket::tokio::{select, sync::broadcast::{channel, error::RecvError, Sender}};
 use std::collections::HashMap;
 
-struct PublicPrivateQueue<T> {
-    target: T,
-    public_queue: Sender<PublicMessage>,
-    private_queues: HashMap<String, Sender<PrivateMessage>>
+pub trait Queue {
+    fn get_subs(&mut self) -> Vec<String>;
+
+    fn send_private_message(&self, sub: &String, message: Message);
+
+    fn send_public_message(&self, message: Message);
 }
 
-impl<T> PublicPrivateQueue<T> {
+pub struct RoomQueue {
+    public: Sender<Message>,
+    privates: HashMap<String, Sender<Message>>
+}
 
-    pub fn get_private_receiver(&mut self, participant: &String) -> Receiver<PrivateMessage> {
-        if !self.private_queues.contains_key(participant) {
-            self.private_queues.insert(participant.to_string(), channel::<PrivateMessage>(1024).0);
+impl Queue for RoomQueue {
+    fn get_subs(&mut self) -> Vec<String> {
+        let mut keys = Vec::new();
+        for (key, _) in self.privates.iter() {
+            keys.push(key.to_string());
         }
-        self.private_queues.get(participant).unwrap().subscribe()
+        keys
     }
 
-    pub fn get_public_receiver(&self) -> Receiver<PublicMessage> {
-        self.public_queue.subscribe()
+    fn send_private_message(&self, sub: &String, message: Message) {
+        let _ = self.privates.get(sub).unwrap().send(message);
     }
 
-    pub fn public_ping(&self) {
-        let _ = self.public_queue.send(PublicMessage {
-            message: "public ping".to_string()
-        });
+    fn send_public_message(&self, message: Message) {
+        let _ = self.public.send(message);
     }
+}
 
-    pub fn private_ping(&self) {
-        for (participant, sender) in self.private_queues.iter() {
-            let _result = sender.send(PrivateMessage {
-                message: format!("private ping for {}", participant)
-            });
+impl RoomQueue {
+    pub fn new() -> Self {
+        Self {
+            public: channel::<Message>(1024).0,
+            privates: HashMap::new()
         }
+    }
+
+    fn channel(&self, sender: &Sender<Message>) -> EventStream![] {
+        let mut receiver = sender.subscribe();
+        EventStream! {
+            loop {
+                let msg = select! {
+                    msg = receiver.recv() => match msg {
+                        Ok(msg) => msg,
+                        Err(RecvError::Closed) => break,
+                        Err(RecvError::Lagged(_)) => continue,
+                    }
+                };
+                yield Event::json(&msg);
+            }
+        }
+    }
+
+    pub fn private_channel(&mut self, sub: &String) -> EventStream![] {
+        if !self.privates.contains_key(sub) {
+            self.privates.insert(
+                sub.to_string(), 
+                channel::<Message>(1024).0
+            );
+        }
+        self.channel(self.privates.get(sub).unwrap())
+    }
+
+    pub fn public_channel(&self) -> EventStream![] {
+        self.channel(&self.public)
     }
 }

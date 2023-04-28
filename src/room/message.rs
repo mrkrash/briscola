@@ -2,12 +2,6 @@ use rocket::serde::Serialize;
 
 #[derive(Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct PublicMessage {
-    pub message: String
-}
-
-#[derive(Clone, Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct PrivateMessage {
+pub struct Message {
     pub message: String
 }

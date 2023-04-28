@@ -1,53 +1,42 @@
-pub mod manager;
-pub mod message;
+pub mod map;
+mod message;
+mod queue;
 
-use message::{PublicMessage, PrivateMessage};
-use rocket::tokio::sync::broadcast::{channel, Sender, Receiver};
-use std::collections::HashMap;
+use message::Message;
+use queue::{Queue, RoomQueue};
 
 pub struct Room {
     _id: String,
-    public_queue: Sender<PublicMessage>,
-    private_queues: HashMap<String, Sender<PrivateMessage>>
+    pub queue: RoomQueue
 }
 
 impl Room {
     fn new(id: &String) -> Self {
         Self {
             _id: id.to_string(),
-            public_queue: channel::<PublicMessage>(1024).0,
-            private_queues: HashMap::new()
+            queue: RoomQueue::new()
         }
     }
 
-    pub fn get_private_receiver(&mut self, participant: &String) -> Receiver<PrivateMessage> {
-        if !self.private_queues.contains_key(participant) {
-            self.private_queues.insert(participant.to_string(), channel::<PrivateMessage>(1024).0);
-        }
-        self.private_queues.get(participant).unwrap().subscribe()
-    }
-
-    pub fn get_public_receiver(&self) -> Receiver<PublicMessage> {
-        self.public_queue.subscribe()
-    }
-
-    pub fn add_participant(&self, participant: &String) {
-        //TODO: handle participants state to prevent overcap, double enter, etc
-        let _ = self.public_queue.send(PublicMessage {
-            message: format!("{} entered room", participant)
+    pub fn join(&self, participant: &String) {
+        let _ = &self.queue.send_public_message(Message {
+            message: format!("{} joined room", participant)
         });
     }
+}
 
-    pub fn public_ping(&self) {
-        let _ = self.public_queue.send(PublicMessage {
+// development purpose
+impl Room {
+    pub fn public_ping(&mut self) {
+        let _ = &self.queue.send_public_message(Message {
             message: "public ping".to_string()
         });
     }
 
-    pub fn private_ping(&self) {
-        for (participant, sender) in self.private_queues.iter() {
-            let _result = sender.send(PrivateMessage {
-                message: format!("private ping for {}", participant)
+    pub fn private_ping(&mut self) {
+        for sub in self.queue.get_subs().into_iter() {
+            let _ = self.queue.send_private_message(&sub, Message {
+                message: format!("private ping for {}", sub)
             });
         }
     }
